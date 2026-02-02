@@ -4,7 +4,7 @@
   "private": true,
   "description": "Science Fair Gemini 3 Dual-Judge Lab (Vercel Serverless)",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "dependencies": {
     "@google/genai": "^0.8.0"
