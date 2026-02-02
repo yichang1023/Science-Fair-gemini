@@ -1,5 +1,7 @@
 const { GoogleGenAI } = require("@google/genai");
 
+const MAX_CHARS = 300; // ✅ 你要的回應字數上限（繁中約 300 字）
+
 function send(res, status, obj) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -10,6 +12,13 @@ function mustEnv(name) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env var: ${name}`);
   return v;
+}
+
+// ✅ 強制截斷，避免回傳過長（保證 <= MAX_CHARS）
+function enforceMaxChars(text, maxChars = MAX_CHARS) {
+  const s = String(text || "");
+  if (s.length <= maxChars) return s;
+  return s.slice(0, maxChars) + "…";
 }
 
 // 讓前端 JSON.parse() 穩定：抽出第一個 {...}
@@ -23,17 +32,14 @@ function extractFirstJsonObject(text) {
 
 // 你的 UI model value → 真實 Gemini 3 模型 + config
 function mapGemini(uiModel) {
-  // Gemini 3 真實模型（preview）
   const PRO = "gemini-3-pro-preview";
   const FLASH = "gemini-3-flash-preview";
 
   switch (uiModel) {
-    // RQ1 Safety
     case "gemini-3-pro-standard":
       return { realModel: PRO, config: {} };
 
     case "gemini-3-pro-safe":
-      // 用 safetySettings 拉高護欄（同一模型，不改 UI）
       return {
         realModel: PRO,
         config: {
@@ -46,7 +52,6 @@ function mapGemini(uiModel) {
         }
       };
 
-    // RQ2 Efficiency
     case "gemini-3-pro":
       return { realModel: PRO, config: {} };
 
@@ -56,7 +61,6 @@ function mapGemini(uiModel) {
         config: { thinkingConfig: { thinkingLevel: "low" } }
       };
 
-    // RQ3 Reasoning
     case "gemini-3-pro-intuition":
       return {
         realModel: PRO,
@@ -69,7 +73,6 @@ function mapGemini(uiModel) {
         config: { thinkingConfig: { thinkingLevel: "high" } }
       };
 
-    // Gemini judge（固定用 Pro）
     case "gemini-3-pro-judge":
       return { realModel: PRO, config: {} };
 
@@ -85,13 +88,6 @@ async function callGemini({ uiModel, prompt, temperature, forceJson }) {
   const { realModel, config } = mapGemini(uiModel);
 
   const finalConfig = { ...config };
-  
-  // --- 修改處開始：強制限制輸出長度以節省成本 ---
-  finalConfig.maxOutputTokens = 300; 
-  // 300 tokens 大約等於 150-300 個中文字，視複雜度而定。
-  // 若是 "gemini-3-thinking" 模型，這個限制只會限制最終回答，思考過程可能會額外計算（視官方計費規則而定）。
-  // --- 修改處結束 ---
-
   if (typeof temperature === "number" && !Number.isNaN(temperature)) {
     finalConfig.temperature = temperature;
   }
@@ -99,9 +95,18 @@ async function callGemini({ uiModel, prompt, temperature, forceJson }) {
     finalConfig.responseMimeType = "application/json";
   }
 
+  // ✅ 只對「非 JSON 模式（subject）」加字數規範，避免裁判 JSON 被影響
+  const effectivePrompt = forceJson
+    ? prompt
+    : (
+        "【輸出規格】請用繁體中文回答，總長度必須 ≤ 300 字（含標點）。" +
+        "用 2~5 點條列，每點一句話。若不確定，請明確說不確定。\n\n" +
+        prompt
+      );
+
   const resp = await ai.models.generateContent({
     model: realModel,
-    contents: prompt,
+    contents: effectivePrompt,
     config: finalConfig
   });
 
@@ -123,9 +128,7 @@ async function callOpenAIJson({ prompt }) {
     body: JSON.stringify({
       model: "gpt-4o",
       input: prompt,
-      temperature: 0,
-      // --- 修改處：GPT 裁判也加上限制，雙重省錢 ---
-      max_tokens: 300 
+      temperature: 0
     })
   });
 
@@ -144,7 +147,6 @@ function judgePromptWrapper(userText) {
 }
 
 module.exports = async (req, res) => {
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -165,28 +167,27 @@ module.exports = async (req, res) => {
   if (!prompt) return send(res, 400, { error: "Missing prompt" });
 
   try {
-    // ① GPT-4o 裁判
+    // ① GPT-4o 裁判（JSON 不截斷，避免壞 JSON）
     if (model === "gpt-4o-judge") {
       const jp = judgePromptWrapper(prompt);
       const out = await callOpenAIJson({ prompt: jp });
-      const jsonStr = extractFirstJsonObject(out.text) || out.text; // 保底
+      const jsonStr = extractFirstJsonObject(out.text) || out.text;
       return send(res, 200, { result: jsonStr, real_model_used: out.real_model_used });
     }
 
-    // ② Gemini 裁判
+    // ② Gemini 裁判（JSON 不截斷，避免壞 JSON）
     if (model === "gemini-3-pro-judge") {
       const jp = judgePromptWrapper(prompt);
       const out = await callGemini({ uiModel: model, prompt: jp, temperature: 0, forceJson: true });
       const jsonStr = extractFirstJsonObject(out.text);
-      // 如果 Gemini 仍然夾帶文字，抽出 JSON；抽不到就回 Type_C 當保底
       const safe = jsonStr || JSON.stringify({ type: "Type_C", reason: "裁判輸出非JSON" });
       return send(res, 200, { result: safe, real_model_used: out.real_model_used });
     }
 
-    // ③ Gemini 選手（真正 Gemini 3）
-    // 注意：選手也會被上面的 callGemini 限制在 300 token 以內
+    // ③ Gemini 選手（真正 Gemini 3）—— ✅ 強制回傳 ≤ 300 字
     const out = await callGemini({ uiModel: model, prompt, temperature, forceJson: false });
-    return send(res, 200, { result: out.text, real_model_used: out.real_model_used });
+    const clipped = enforceMaxChars(out.text, MAX_CHARS);
+    return send(res, 200, { result: clipped, real_model_used: out.real_model_used });
 
   } catch (e) {
     return send(res, 500, { error: String(e?.message || e) });
