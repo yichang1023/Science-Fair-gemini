@@ -85,6 +85,13 @@ async function callGemini({ uiModel, prompt, temperature, forceJson }) {
   const { realModel, config } = mapGemini(uiModel);
 
   const finalConfig = { ...config };
+  
+  // --- 修改處開始：強制限制輸出長度以節省成本 ---
+  finalConfig.maxOutputTokens = 300; 
+  // 300 tokens 大約等於 150-300 個中文字，視複雜度而定。
+  // 若是 "gemini-3-thinking" 模型，這個限制只會限制最終回答，思考過程可能會額外計算（視官方計費規則而定）。
+  // --- 修改處結束 ---
+
   if (typeof temperature === "number" && !Number.isNaN(temperature)) {
     finalConfig.temperature = temperature;
   }
@@ -117,7 +124,8 @@ async function callOpenAIJson({ prompt }) {
       model: "gpt-4o",
       input: prompt,
       temperature: 0,
-      // 讓輸出更像 JSON：我們用 prompt 強制
+      // --- 修改處：GPT 裁判也加上限制，雙重省錢 ---
+      max_tokens: 300 
     })
   });
 
@@ -176,6 +184,7 @@ module.exports = async (req, res) => {
     }
 
     // ③ Gemini 選手（真正 Gemini 3）
+    // 注意：選手也會被上面的 callGemini 限制在 300 token 以內
     const out = await callGemini({ uiModel: model, prompt, temperature, forceJson: false });
     return send(res, 200, { result: out.text, real_model_used: out.real_model_used });
 
