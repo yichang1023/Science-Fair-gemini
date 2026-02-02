@@ -3,77 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧪 Gemini 3.0 Dual-Judge Lab (V12.1 - With Temp Control)</title>
+    <title>🧪 Gemini 3.0 Dual-Judge Lab (V12.0 Ultimate)</title>
     <style>
-        :root { --primary: #1a73e8; --bg: #f8fafc; --gpt: #10a37f; --gemini: #8e44ad; }
-        body { font-family: "Google Sans", "Microsoft JhengHei", sans-serif; background: var(--bg); padding: 20px; max-width: 1800px; margin: 0 auto; color: #333; }
+        /* V12.0 核心樣式定義 */
+        :root { --primary: #2563eb; --judge-gpt: #10a37f; --judge-gemini: #8e44ad; --bg: #f8fafc; --card: #ffffff; --success: #10b981; --danger: #ef4444; }
+        body { font-family: "Google Sans", "Microsoft JhengHei", sans-serif; background: var(--bg); padding: 20px; max-width: 1800px; margin: 0 auto; color: #1e293b; }
         
-        header { text-align: center; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; padding-bottom: 10px; }
-        h1 { margin: 0; color: #0f172a; font-weight: 800; }
+        header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #e2e8f0; margin-bottom: 30px; }
+        h1 { margin: 0; font-size: 2em; font-weight: 800; color: #0f172a; }
+        .badge { background: linear-gradient(90deg, #4285f4, #8e44ad); color: #fff; padding: 5px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; font-family: monospace; }
 
-        .container { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .card h3 { margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; font-size: 1.1em; color: #334155; }
 
-        label { display: block; font-weight: bold; margin-top: 15px; color: #334155; }
-        select, textarea { width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
-        textarea { height: 120px; font-family: monospace; }
+        /* 輸入元件 */
+        label { display: block; font-weight: 700; margin-bottom: 6px; color: #334155; font-size: 0.95em; margin-top: 12px; }
+        .hint { font-size: 0.85em; color: #64748b; margin-bottom: 8px; font-weight: normal; }
         
-        /* 溫度滑桿樣式 */
-        .range-container { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
-        input[type=range] { flex: 1; accent-color: var(--primary); }
-        .temp-val { font-weight: bold; color: var(--primary); min-width: 30px; text-align: right; }
+        select, textarea, input[type="range"] { width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; box-sizing: border-box; }
+        select:focus, textarea:focus { border-color: var(--primary); outline: none; }
+        textarea { height: 120px; font-family: monospace; resize: vertical; }
+        
+        /* 溫度滑桿 */
+        .range-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .range-val { font-weight: bold; color: var(--primary); min-width: 30px; }
+        
+        /* V12.0 按鈕群組 (還原圖片樣式) */
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .btn-full { grid-column: span 2; }
+        
+        button { padding: 12px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; color: white; transition: 0.2s; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-direction: column; line-height: 1.2; }
+        
+        .btn-start { background: #3b82f6; height: 80px; font-size: 16px; } .btn-start:hover { background: #2563eb; }
+        .btn-pipe { background: #8b5cf6; height: 80px; font-size: 16px; } .btn-pipe:hover { background: #7c3aed; }
+        
+        .btn-stop { background: #e2e8f0; color: #64748b; font-weight: 800; } .btn-stop:hover { background: #cbd5e1; color: #475569; }
+        .btn-stop.active { background: #ef4444; color: white; } .btn-stop.active:hover { background: #dc2626; }
 
-        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; color: white; }
-        .btn-start { background: #1a73e8; } .btn-start:hover { background: #1557b0; }
-        .btn-pipe { background: linear-gradient(90deg, var(--gpt), var(--gemini)); } .btn-pipe:hover { opacity: 0.9; }
-        .btn-csv { background: #334155; margin-top: 5px; }
+        .btn-csv { background: #e2e8f0; color: #475569; height: 60px; } .btn-csv:hover { background: #cbd5e1; }
+        .btn-report { background: #e2e8f0; color: #475569; height: 60px; } .btn-report:hover { background: #cbd5e1; }
+        
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.ready { background: #10b981; color: white; } /* 下載準備好時變綠色 */
 
-        .table-wrap { height: 750px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+        /* 表格優化 */
+        .table-container { height: 800px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-        th { background: #f1f5f9; padding: 10px; text-align: left; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #cbd5e1; white-space: nowrap; }
+        th { background: #f8fafc; padding: 10px; text-align: left; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
         td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; word-wrap: break-word; }
 
-        .col-q { width: 18%; } .col-meta { width: 8%; } .col-a { width: 22%; } .col-stat { width: 7%; }
-        .col-judge1 { width: 13%; background: #f0fdf4; border-left: 2px solid var(--gpt); }
-        .col-judge2 { width: 13%; background: #f3e8ff; border-left: 2px solid var(--gemini); }
-        .col-human { width: 19%; }
+        /* 七大欄位寬度設定 */
+        .col-q { width: 18%; }
+        .col-meta { width: 8%; }
+        .col-a { width: 22%; }
+        .col-stat { width: 6%; text-align: center; }
+        .col-judge1 { width: 13%; background: #f0fdf4; border-left: 3px solid var(--judge-gpt); }
+        .col-judge2 { width: 13%; background: #f3e8ff; border-left: 3px solid var(--judge-gemini); }
+        .col-human { width: 20%; border-left: 2px solid #e2e8f0; }
 
-        .tag { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 11px; margin-bottom: 2px; font-weight: bold; }
-        .tag-hard { background: #fee2e2; color: #991b1b; } .tag-type { background: #e0f2fe; color: #075985; }
-        .stat-badge { display: block; font-family: monospace; font-size: 11px; color: #64748b; background: #f1f5f9; padding: 2px; border-radius: 3px; margin-bottom: 2px; text-align: center; }
-        
-        .judge-res { font-weight: bold; margin-bottom: 4px; display: block; }
-        .res-OK { color: #16a34a; } .res-Type_A { color: #dc2626; } .res-Type_B { color: #ea580c; } .res-Type_C { color: #ca8a04; } .res-Type_D { color: #475569; }
-        .reason { font-size: 11px; color: #333; display: block; line-height: 1.2; }
+        /* 標籤樣式 */
+        .tag { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; margin-bottom: 2px; font-weight: bold; }
+        .bg-hard { background: #fee2e2; color: #991b1b; } .bg-type { background: #e0f2fe; color: #075985; }
+        .stat-badge { display: block; background: #f1f5f9; border-radius: 4px; padding: 2px; margin-bottom: 2px; font-family: monospace; font-size: 11px; text-align: center; color: #64748b; }
 
-        .h-btns { display: flex; gap: 2px; flex-wrap: wrap; }
-        .h-btn { flex: 1; padding: 4px; font-size: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; border-radius: 4px; }
-        .h-btn.selected { background: #334155; color: white; border-color: #334155; }
-        .conflict { background-color: #fffbe6; }
-        .loading { color: #94a3b8; font-style: italic; }
+        /* 裁判結果樣式 */
+        .judge-box { font-family: monospace; font-size: 12px; }
+        .res-type { font-weight: bold; display: block; margin-bottom: 2px; }
+        .res-reason { font-size: 11px; color: #475569; display: block; line-height: 1.2; }
+        .conflict { background-color: #fffbe6; } /* 衝突亮燈 */
+
+        /* 人類評分按鈕 */
+        .eval-btns { display: flex; flex-wrap: wrap; gap: 3px; }
+        .eval-btn { padding: 4px; font-size: 10px; border: 1px solid #cbd5e1; background: white; color: #64748b; cursor: pointer; flex: 1; text-align: center; border-radius: 4px; height: auto; display: block; font-weight: normal; }
+        .eval-btn:hover { background: #f1f5f9; }
+        .eval-btn.selected { background: #334155; color: white; border-color: #334155; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>🧪 Gemini 3.0 Dual-Judge Lab</h1>
-    <div style="font-size: 0.9em; color: #666;">RQ1/RQ2/RQ3 Pipeline with Temperature Control</div>
+    <h1>🧪 2026 Gemini 3.0 Dual-Judge Lab</h1>
+    <div style="margin-top:10px;"><span class="badge">V12.0 ULTIMATE EDITION</span></div>
 </header>
 
 <div class="container">
     <div class="card">
-        <h3>🎛️ 實驗參數</h3>
+        <h3>🎛️ 實驗參數 (Parameters)</h3>
+        
         <div style="background:#dbeafe; color:#1e40af; padding:8px; border-radius:6px; font-size:12px; margin-bottom:10px;">
-            ✅ Vercel 環境變數已連接
+            ✅ Vercel 環境變數已連接 (API Keys Ready)
         </div>
 
-        <label>1. 選擇 Gemini 選手 (Subject)</label>
+        <label>1. Gemini 3.0 模型 (Model)</label>
         <select id="modelSelect">
             <optgroup label="RQ1: 安全性 (Safety)">
                 <option value="gemini-3-pro-standard">Gemini 3.0 Pro (一般模式)</option>
                 <option value="gemini-3-pro-safe">Gemini 3.0 Pro (高安全模式)</option>
             </optgroup>
-            <optgroup label="RQ2: 記憶與規模 (Efficiency)">
+            <optgroup label="RQ2: 規模與記憶 (Efficiency)">
                 <option value="gemini-3-pro">Gemini 3.0 Pro (旗艦版)</option>
                 <option value="gemini-3-flash">Gemini 3.0 Flash (輕量版)</option>
             </optgroup>
@@ -83,30 +111,51 @@
             </optgroup>
         </select>
 
-        <label>2. 溫度設定 (Temperature)</label>
-        <div class="range-container">
-            <input type="range" id="tempRange" min="0" max="1" step="0.1" value="0.7" oninput="document.getElementById('tempDisplay').innerText = this.value">
-            <span id="tempDisplay" class="temp-val">0.7</span>
+        <label>2. 溫度控制 (Temperature)</label>
+        <div class="range-wrap">
+            <input type="range" id="tempRange" min="0" max="1" step="0.1" value="0.7" oninput="document.getElementById('tempVal').innerText=this.value">
+            <span class="range-val" id="tempVal">0.7</span>
         </div>
-        <div style="font-size:11px; color:#64748b; margin-top:4px;">(0=穩定/保守, 1=創意/隨機)</div>
 
-        <label>3. 題庫 (CSV)</label>
-        <textarea id="csvInput" placeholder="題目,難度,類型..."></textarea>
+        <label>3. 題目輸入 (CSV)</label>
+        <div class="hint">格式: 題目,難度,類型 (例如: 李白是誰?,Hard,Hallucination)</div>
+        <textarea id="csvInput" placeholder="請貼上題庫..."></textarea>
         
-        <button class="btn-start" onclick="startExp(false)" id="btnSimple">▶ 僅執行選手 (Subject Only)</button>
-        <button class="btn-pipe" onclick="startExp(true)" id="btnDual">▶ 啟動雙裁判 (Dual Judge)</button>
-        <button class="btn-csv" onclick="downloadCSV()">📥 下載數據 (CSV)</button>
+        <div class="btn-grid">
+            <button class="btn-start" onclick="startExp(false)" id="btnStart">
+                ▶ 執行實驗 (Start)
+                <span style="font-size:11px; opacity:0.8; font-weight:normal; margin-top:2px;">僅選手回答 (Pilot)</span>
+            </button>
+            <button class="btn-pipe" onclick="startExp(true)" id="btnPipe">
+                ▶ 啟動流水線 (Pipeline)
+                <span style="font-size:11px; opacity:0.8; font-weight:normal; margin-top:2px;">選手 + 雙裁判 (Production)</span>
+            </button>
+            
+            <button class="btn-stop btn-full" onclick="stopExp()" id="btnStop" disabled>
+                ⏹ 強制停止 (Stop)
+            </button>
+            
+            <button class="btn-csv" onclick="downloadCSV('basic')" id="btnCsv" disabled>
+                📥 下載基礎數據
+            </button>
+            <button class="btn-report" onclick="downloadCSV('full')" id="btnReport" disabled>
+                📥 下載完整報告 (Full Analysis)
+            </button>
+        </div>
         
-        <div style="margin-top:15px; font-size:12px; text-align:center;" id="statusText">就緒</div>
-        <div style="height:4px; background:#e2e8f0; margin-top:5px;"><div id="progressBar" style="width:0%; height:100%; background:#1a73e8; transition:0.3s;"></div></div>
+        <div style="margin-top:15px; height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden;">
+            <div id="progressBar" style="height:100%; width:0%; background:#2563eb; transition:0.3s;"></div>
+        </div>
+        <div id="statusText" style="text-align:center; font-size:12px; color:#64748b; margin-top:5px;">準備就緒</div>
     </div>
 
     <div class="card">
-        <div class="table-wrap">
+        <h3>📊 評測結果 (Results) <span style="font-size:12px; color:#64748b; font-weight:normal; margin-left:10px;">GPT-4o & Gemini 雙盲審查機制</span></h3>
+        <div class="table-container">
             <table id="resTable">
                 <thead>
                     <tr>
-                        <th class="col-q">1. 題目</th>
+                        <th class="col-q">1. 題目 (Question)</th>
                         <th class="col-meta">2. 屬性</th>
                         <th class="col-a">3. AI 回應 (Subject)</th>
                         <th class="col-stat">4. 統計</th>
@@ -125,13 +174,13 @@
     let resultsLog = [];
     let isRunning = false;
 
-    async function startExp(useJudges) {
+    async function startExp(usePipeline) {
         const csv = document.getElementById('csvInput').value.trim();
         const model = document.getElementById('modelSelect').value;
-        const temperature = parseFloat(document.getElementById('tempRange').value); // 取得溫度
+        const temp = parseFloat(document.getElementById('tempRange').value);
 
-        if(!csv) return alert("請輸入題目！");
-
+        if(!csv) return alert("請貼上題庫！");
+        
         const lines = csv.split('\n');
         document.querySelector('tbody').innerHTML = "";
         resultsLog = [];
@@ -139,69 +188,78 @@
         updateUI(true);
 
         for(let i=0; i<lines.length; i++) {
-            if(!lines[i].trim()) continue;
-            const parts = lines[i].split(',');
+            if(!isRunning) break;
+            const line = lines[i].trim();
+            if(!line) continue;
+            
+            const parts = line.split(',');
             const question = parts[0];
             const diff = parts[1] || "-";
             const type = parts[2] || "-";
 
+            // 更新進度條
             document.getElementById('progressBar').style.width = ((i+1)/lines.length)*100 + "%";
             document.getElementById('statusText').innerText = `正在測試第 ${i+1}/${lines.length} 題...`;
 
+            // 建立表格行
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><div style="font-weight:bold; margin-bottom:4px;">#${i+1}</div>${question}</td>
-                <td><span class="tag tag-hard">${diff}</span><br><span class="tag tag-type">${type}</span></td>
-                <td class="loading">思考中 (Temp: ${temperature})...</td>
-                <td>-</td>
+                <td><div style="font-weight:bold;margin-bottom:4px;color:#94a3b8">#${i+1}</div>${question}</td>
+                <td><span class="tag bg-hard">${diff}</span><br><span class="tag bg-type">${type}</span></td>
+                <td style="color:#64748b; font-style:italic;">思考中...</td>
+                <td style="text-align:center;">-</td>
                 <td>-</td>
                 <td>-</td>
                 <td>
-                    <div class="h-btns" id="btns-${i}">
-                        <button class="h-btn" onclick="setHuman(${i}, 'OK', this)">OK</button>
-                        <button class="h-btn" onclick="setHuman(${i}, 'Type_A', this)">A</button>
-                        <button class="h-btn" onclick="setHuman(${i}, 'Type_B', this)">B</button>
-                        <button class="h-btn" onclick="setHuman(${i}, 'Type_C', this)">C</button>
-                        <button class="h-btn" onclick="setHuman(${i}, 'Type_D', this)">D</button>
+                    <div class="eval-btns" id="btns-${i}">
+                        <button class="eval-btn" onclick="setHuman(${i}, 'OK', this)">OK</button>
+                        <button class="eval-btn" onclick="setHuman(${i}, 'Type_A', this)">A</button>
+                        <button class="eval-btn" onclick="setHuman(${i}, 'Type_B', this)">B</button>
+                        <button class="eval-btn" onclick="setHuman(${i}, 'Type_C', this)">C</button>
+                        <button class="eval-btn" onclick="setHuman(${i}, 'Type_D', this)">D</button>
                     </div>
                 </td>
             `;
             document.querySelector('tbody').appendChild(tr);
             tr.scrollIntoView({behavior: "smooth"});
 
+            // 1. 執行選手回答
             const startT = Date.now();
             let answer = "";
             try {
-                // 1. 呼叫選手 (傳入 temperature)
                 const res = await fetch('/api/generate', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ prompt: question, model: model, temperature: temperature })
+                    body: JSON.stringify({ prompt: question, model: model, temperature: temp })
                 });
                 const data = await res.json();
                 answer = data.result || "Error";
             } catch(e) { answer = "API Error"; }
+            
             const latency = Date.now() - startT;
             const len = answer.length;
 
-            tr.children[2].innerHTML = answer;
-            tr.children[2].classList.remove('loading');
+            tr.children[2].innerHTML = answer; // 填入回答
+            tr.children[2].style.color = "#1e293b";
+            tr.children[2].style.fontStyle = "normal";
             tr.children[3].innerHTML = `<span class="stat-badge">${len}字</span><span class="stat-badge">${latency}ms</span>`;
 
+            // 2. 執行流水線 (雙裁判)
             let gptRes = {type:"-", reason:""};
             let geminiRes = {type:"-", reason:""};
 
-            // 2. 呼叫雙裁判 (裁判不需要 Temperature，保持客觀 0.1)
-            if(useJudges) {
-                tr.children[4].innerText = "⏳";
-                tr.children[5].innerText = "⏳";
+            if(usePipeline) {
+                tr.children[4].innerText = "⏳ 評分...";
+                tr.children[5].innerText = "⏳ 評分...";
+
                 const judgePrompt = `題目: ${question}\n選手回答: ${answer}\n(請評分)`;
                 
+                // 平行呼叫
                 const [p1, p2] = await Promise.allSettled([
                     fetch('/api/generate', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ prompt: judgePrompt, model: 'gpt-4o-judge' }) // 裁判不吃前端 Temp
+                        body: JSON.stringify({ prompt: judgePrompt, model: 'gpt-4o-judge' })
                     }).then(r => r.json()),
                     fetch('/api/generate', {
                         method: 'POST',
@@ -210,20 +268,30 @@
                     }).then(r => r.json())
                 ]);
 
+                // 顯示 GPT 結果
                 if(p1.status==='fulfilled') {
-                    try { gptRes = JSON.parse(p1.value.result); tr.children[4].innerHTML = `<span class="judge-res res-${gptRes.type}">${gptRes.type}</span><span class="reason">${gptRes.reason}</span>`; } catch(e) { tr.children[4].innerText = "Error"; }
+                    try { 
+                        gptRes = JSON.parse(p1.value.result); 
+                        tr.children[4].innerHTML = `<div class="judge-box"><span class="res-type" style="color:#10a37f">${gptRes.type}</span><span class="res-reason">${gptRes.reason}</span></div>`;
+                    } catch(e) { tr.children[4].innerText = "JSON Error"; }
                 }
+                // 顯示 Gemini 結果
                 if(p2.status==='fulfilled') {
-                    try { geminiRes = JSON.parse(p2.value.result); tr.children[5].innerHTML = `<span class="judge-res res-${geminiRes.type}">${geminiRes.type}</span><span class="reason">${geminiRes.reason}</span>`; } catch(e) { tr.children[5].innerText = "Error"; }
+                    try { 
+                        geminiRes = JSON.parse(p2.value.result); 
+                        tr.children[5].innerHTML = `<div class="judge-box"><span class="res-type" style="color:#8e44ad">${geminiRes.type}</span><span class="res-reason">${geminiRes.reason}</span></div>`;
+                    } catch(e) { tr.children[5].innerText = "JSON Error"; }
                 }
+
+                // 衝突標記
                 if(gptRes.type !== '-' && geminiRes.type !== '-' && gptRes.type !== geminiRes.type) {
                     tr.classList.add('conflict');
                 }
             }
 
-            // 紀錄 Temperature 到 Log
+            // 寫入 Log
             resultsLog.push({
-                id: i+1, q: question, diff, type, model, temperature, answer, len, latency,
+                id: i+1, q: question, diff, type, model, temp, answer, len, latency,
                 gpt_type: gptRes.type, gpt_reason: gptRes.reason,
                 gemini_type: geminiRes.type, gemini_reason: geminiRes.reason,
                 human: ""
@@ -231,35 +299,72 @@
 
             await new Promise(r => setTimeout(r, 1000));
         }
+
         isRunning = false;
         updateUI(false);
-        document.getElementById('statusText').innerText = "✅ 完成";
+        document.getElementById('statusText').innerText = "✅ 實驗完成";
+        
+        // 實驗完成後啟用下載按鈕
+        document.getElementById('btnCsv').classList.add('ready');
+        document.getElementById('btnReport').classList.add('ready');
     }
+
+    function stopExp() { isRunning = false; }
 
     window.setHuman = function(idx, val, btn) {
         if(resultsLog[idx]) resultsLog[idx].human = val;
-        const btns = document.getElementById(`btns-${idx}`).querySelectorAll('.h-btn');
-        btns.forEach(b => b.classList.remove('selected'));
+        const parent = document.getElementById(`btns-${idx}`);
+        parent.querySelectorAll('.eval-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
     }
 
-    function downloadCSV() {
-        // 新增 Temperature 欄位
-        let csv = "\uFEFFID,Question,Diff,Type,Model,Temperature,Answer,Length,Latency,GPT_Judge,GPT_Reason,Gemini_Judge,Gemini_Reason,Human_Verify\n";
-        resultsLog.forEach(r => {
-            const safeA = '"' + r.answer.replace(/"/g, '""').replace(/\n/g, ' ') + '"';
-            csv += `${r.id},"${r.q}",${r.diff},${r.type},${r.model},${r.temperature},${safeA},${r.len},${r.latency},${r.gpt_type},"${r.gpt_reason}",${r.gemini_type},"${r.gemini_reason}",${r.human}\n`;
-        });
+    function downloadCSV(mode) {
+        if(resultsLog.length === 0) return;
+        let csv = "";
+        
+        if(mode === 'basic') {
+            csv = "\uFEFFID,Question,Model,Answer,Latency,Human_Verify\n";
+            resultsLog.forEach(r => {
+                const safeA = '"' + r.answer.replace(/"/g, '""').replace(/\n/g, ' ') + '"';
+                csv += `${r.id},"${r.q}",${r.model},${safeA},${r.latency},${r.human}\n`;
+            });
+        } else {
+            // Full Report with Judges & Temp
+            csv = "\uFEFFID,Question,Diff,Type,Model,Temperature,Answer,Length,Latency,GPT_Judge,GPT_Reason,Gemini_Judge,Gemini_Reason,Human_Verify\n";
+            resultsLog.forEach(r => {
+                const safeA = '"' + r.answer.replace(/"/g, '""').replace(/\n/g, ' ') + '"';
+                csv += `${r.id},"${r.q}",${r.diff},${r.type},${r.model},${r.temp},${safeA},${r.len},${r.latency},${r.gpt_type},"${r.gpt_reason}",${r.gemini_type},"${r.gemini_reason}",${r.human}\n`;
+            });
+        }
+
         const link = document.createElement("a");
         link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-        link.download = `Gemini_Dual_Exp_Temp${resultsLog[0]?.temperature}_${Date.now()}.csv`;
+        link.download = `Gemini_${mode}_${Date.now()}.csv`;
         link.click();
     }
 
     function updateUI(busy) {
-        document.getElementById('btnSimple').disabled = busy;
-        document.getElementById('btnDual').disabled = busy;
+        const startBtn = document.getElementById('btnStart');
+        const pipeBtn = document.getElementById('btnPipe');
+        const stopBtn = document.getElementById('btnStop');
+        const csvBtn = document.getElementById('btnCsv');
+        const rptBtn = document.getElementById('btnReport');
+
+        if(busy) {
+            startBtn.disabled = true;
+            pipeBtn.disabled = true;
+            stopBtn.disabled = false; stopBtn.classList.add('active');
+            csvBtn.disabled = true; csvBtn.classList.remove('ready');
+            rptBtn.disabled = true; rptBtn.classList.remove('ready');
+        } else {
+            startBtn.disabled = false;
+            pipeBtn.disabled = false;
+            stopBtn.disabled = true; stopBtn.classList.remove('active');
+            csvBtn.disabled = false;
+            rptBtn.disabled = false;
+        }
     }
 </script>
+
 </body>
 </html>
