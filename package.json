@@ -1,1 +1,17 @@
-
+{
+  "name": "gemini-3-dual-judge-lab",
+  "version": "2.0.0",
+  "description": "Science Fair 2026: Gemini 3.0 vs GPT-4o Dual Judge System",
+  "main": "api/generate.js",
+  "scripts": {
+    "start": "node api/generate.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.12.0",
+    "openai": "^4.28.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=20.x"
+  }
+}
