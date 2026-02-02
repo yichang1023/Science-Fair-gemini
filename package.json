@@ -1,12 +1,12 @@
 {
-  "name": "gemini-dual-judge-lab",
-  "version": "2.0.0",
-  "main": "api/generate.js",
-  "scripts": { "start": "node api/generate.js" },
-  "dependencies": {
-    "@google/generative-ai": "^0.12.0",
-    "openai": "^4.28.0",
-    "dotenv": "^16.4.5"
+  "name": "science-fair-gemini",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Science fair Gemini 3 hallucination evaluation lab (Vercel + Serverless API)",
+  "engines": {
+    "node": ">=18"
   },
-  "engines": { "node": ">=24.x" }
+  "dependencies": {
+    "@google/genai": "^0.8.0"
+  }
 }
