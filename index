@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Gemini 3.0 Dual-Judge Lab (V2.0)</title>
+    <style>
+        :root { --primary: #1a73e8; --judge-gpt: #10a37f; --judge-gemini: #8e44ad; --bg: #f8fafc; }
+        body { font-family: "Google Sans", "Microsoft JhengHei", sans-serif; background: var(--bg); padding: 20px; max-width: 1800px; margin: 0 auto; color: #333; }
+        
+        header { text-align: center; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; padding-bottom: 10px; }
+        h1 { margin: 0; color: #0f172a; font-weight: 800; }
+        .subtitle { color: #64748b; font-size: 0.9em; margin-top: 5px; }
+
+        .container { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        
+        label { display: block; font-weight: bold; margin-top: 15px; margin-bottom: 5px; color: #334155; }
+        select, textarea { width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+        textarea { height: 120px; font-family: monospace; }
+        
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; color: white; transition: 0.2s; }
+        .btn-start { background: #1a73e8; } .btn-start:hover { background: #1557b0; }
+        .btn-pipe { background: linear-gradient(90deg, #10a37f, #8e44ad); } .btn-pipe:hover { opacity: 0.9; }
+        .btn-csv { background: #334155; margin-top: 5px; }
+
+        .table-wrap { height: 750px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        th { background: #f1f5f9; padding: 10px; text-align: left; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #cbd5e1; }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; word-wrap: break-word; }
+
+        /* 欄位寬度定義 */
+        .col-id { width: 40px; text-align: center; color: #94a3b8; }
+        .col-q { width: 20%; }
+        .col-a { width: 25%; }
+        .col-judge-gpt { width: 15%; background: #f0fdf4; border-left: 3px solid #10a37f; }
+        .col-judge-gemini { width: 15%; background: #f3e8ff; border-left: 3px solid #8e44ad; }
+        .col-human { width: 15%; }
+
+        .judge-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; margin-bottom: 4px; color: white; }
+        .tag-OK { background: #22c55e; } 
+        .tag-Type_A { background: #ef4444; } 
+        .tag-Type_B { background: #f97316; } 
+        .tag-Type_C { background: #eab308; color: black; } 
+        .tag-Type_D { background: #64748b; }
+        
+        .conflict-row { background-color: #fffbe6; } /* 裁判打架時變黃色 */
+        .loading { font-style: italic; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🧪 Gemini 3.0 Dual-Judge Lab</h1>
+    <div class="subtitle">System: Gemini 3.0 (Subject) vs. GPT-4o & Gemini Pro (Judges)</div>
+</header>
+
+<div class="container">
+    <div class="card">
+        <h3>🎛️ 實驗參數</h3>
+        
+        <div style="background:#dbeafe; color:#1e40af; padding:10px; border-radius:6px; font-size:12px;">
+            ✅ 系統已連接 Vercel 金庫 (API Keys Loaded)
+        </div>
+
+        <label>1. 選擇 Gemini 選手 (Subject)</label>
+        <select id="modelSelect">
+            <optgroup label="RQ1: 安全性 (Safety)">
+                <option value="gemini-3-pro-standard">Gemini 3.0 Pro (一般模式)</option>
+                <option value="gemini-3-pro-safe">Gemini 3.0 Pro (高安全模式)</option>
+            </optgroup>
+            <optgroup label="RQ2: 記憶與規模 (Efficiency)">
+                <option value="gemini-3-pro">Gemini 3.0 Pro (旗艦版)</option>
+                <option value="gemini-3-flash">Gemini 3.0 Flash (輕量版)</option>
+            </optgroup>
+            <optgroup label="RQ3: 邏輯思考 (Reasoning)">
+                <option value="gemini-3-pro-intuition">Gemini 3.0 Pro (直覺快思)</option>
+                <option value="gemini-3-thinking">Gemini 3.0 Thinking (思維鏈 CoT)</option>
+            </optgroup>
+        </select>
+
+        <label>2. 貼上 CSV 題庫</label>
+        <textarea id="csvInput" placeholder="題目,難度,類型..."></textarea>
+        
+        <button class="btn-start" onclick="startExp(false)" id="btnSimple">▶ 僅執行選手 (Run Subject)</button>
+        <button class="btn-pipe" onclick="startExp(true)" id="btnDual">▶ 啟動雙裁判 (Dual Judge)</button>
+        <button class="btn-csv" onclick="downloadCSV()">📥 下載數據 (CSV)</button>
+        
+        <div style="margin-top:15px; height:6px; background:#e2e8f0; border-radius:3px;">
+            <div id="progressBar" style="width:0%; height:100%; background:#1a73e8; transition:0.3s;"></div>
+        </div>
+        <div id="statusText" style="margin-top:5px; font-size:12px; color:#64748b; text-align:center;">就緒</div>
+    </div>
+
+    <div class="card">
+        <h3>📊 評測結果 (Results)</h3>
+        <div class="table-wrap">
+            <table id="resTable">
+                <thead>
+                    <tr>
+                        <th class="col-id">#</th>
+                        <th class="col-q">題目 (Question)</th>
+                        <th class="col-a">Gemini 回應 (Answer)</th>
+                        <th class="col-judge-gpt">🤖 GPT-4o 裁判</th>
+                        <th class="col-judge-gemini">🤖 Gemini 裁判</th>
+                        <th class="col-human">👤 備註/複查</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let resultsLog = [];
+    let isRunning = false;
+
+    async function startExp(useJudges) {
+        const csv = document.getElementById('csvInput').value.trim();
+        const model = document.getElementById('modelSelect').value;
+        if(!csv) return alert("請輸入題目！");
+
+        const lines = csv.split('\n');
+        document.querySelector('tbody').innerHTML = "";
+        resultsLog = [];
+        isRunning = true;
+        updateUI(true);
+
+        for(let i=0; i<lines.length; i++) {
+            if(!lines[i].trim()) continue;
+            const parts = lines[i].split(',');
+            const question = parts[0];
+            const meta = parts.slice(1).join(' ');
+
+            document.getElementById('progressBar').style.width = ((i+1)/lines.length)*100 + "%";
+            document.getElementById('statusText').innerText = `正在測試第 ${i+1}/${lines.length} 題...`;
+
+            // 建立 UI
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="col-id">${i+1}</td>
+                <td>${question}<div style="font-size:10px;color:#94a3b8">${meta}</div></td>
+                <td class="loading">思考中...</td>
+                <td>-</td>
+                <td>-</td>
+                <td>-</td>
+            `;
+            document.querySelector('tbody').appendChild(tr);
+            tr.scrollIntoView({behavior: "smooth"});
+
+            // 1. 呼叫 Gemini 選手
+            const startT = Date.now();
+            let answer = "";
+            try {
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ prompt: question, model: model })
+                });
+                const data = await res.json();
+                answer = data.result || "Error";
+            } catch(e) { answer = "API Error"; }
+            const latency = Date.now() - startT;
+
+            // 更新回答欄位
+            tr.children[2].innerHTML = answer;
+            tr.children[2].classList.remove('loading');
+
+            let gptRes = {type:"-", reason:""};
+            let geminiRes = {type:"-", reason:""};
+
+            // 2. 呼叫雙裁判 (如果啟用)
+            if(useJudges) {
+                tr.children[3].innerText = "⏳ 評分中...";
+                tr.children[4].innerText = "⏳ 評分中...";
+
+                const judgePrompt = `題目: ${question}\n選手回答: ${answer}\n(請依照標準評分幻覺類型)`;
+
+                // 平行呼叫兩位裁判
+                const [p1, p2] = await Promise.allSettled([
+                    fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ prompt: judgePrompt, model: 'gpt-4o-judge' })
+                    }).then(r => r.json()),
+                    
+                    fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ prompt: judgePrompt, model: 'gemini-3-pro-judge' })
+                    }).then(r => r.json())
+                ]);
+
+                // 解析 GPT 結果
+                if(p1.status === 'fulfilled') {
+                    try {
+                        gptRes = JSON.parse(p1.value.result);
+                        tr.children[3].innerHTML = `<span class="judge-tag tag-${gptRes.type}">${gptRes.type}</span><br><span style="font-size:11px">${gptRes.reason}</span>`;
+                    } catch(e) { tr.children[3].innerText = "Parse Error"; }
+                }
+
+                // 解析 Gemini 結果
+                if(p2.status === 'fulfilled') {
+                    try {
+                        geminiRes = JSON.parse(p2.value.result);
+                        tr.children[4].innerHTML = `<span class="judge-tag tag-${geminiRes.type}">${geminiRes.type}</span><br><span style="font-size:11px">${geminiRes.reason}</span>`;
+                    } catch(e) { tr.children[4].innerText = "Parse Error"; }
+                }
+
+                // 標記衝突 (Highlight Conflict)
+                if(gptRes.type !== '-' && geminiRes.type !== '-' && gptRes.type !== geminiRes.type) {
+                    tr.classList.add('conflict-row');
+                }
+            }
+
+            // 紀錄數據
+            resultsLog.push({
+                id: i+1, q: question, meta, model, answer, latency,
+                gpt_judge: gptRes.type, gpt_reason: gptRes.reason,
+                gemini_judge: geminiRes.type, gemini_reason: geminiRes.reason
+            });
+
+            // 休息緩衝
+            await new Promise(r => setTimeout(r, 1000));
+        }
+        isRunning = false;
+        updateUI(false);
+        document.getElementById('statusText').innerText = "✅ 實驗完成";
+    }
+
+    function downloadCSV() {
+        let csv = "\uFEFFID,Question,Meta,Model,Answer,Latency,GPT_Judge,GPT_Reason,Gemini_Judge,Gemini_Reason\n";
+        resultsLog.forEach(r => {
+            const safeA = '"' + r.answer.replace(/"/g, '""').replace(/\n/g, ' ') + '"';
+            csv += `${r.id},"${r.q}","${r.meta}",${r.model},${safeA},${r.latency},${r.gpt_judge},"${r.gpt_reason}",${r.gemini_judge},"${r.gemini_reason}"\n`;
+        });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+        link.download = `Dual_Judge_Exp_${Date.now()}.csv`;
+        link.click();
+    }
+
+    function updateUI(busy) {
+        document.getElementById('btnSimple').disabled = busy;
+        document.getElementById('btnDual').disabled = busy;
+    }
+</script>
+
+</body>
+</html>
