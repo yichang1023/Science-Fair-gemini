@@ -1,17 +1,14 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import OpenAI from "openai";
+// api/generate.js
+// 改用 require 語法，解決 Vercel 部署報錯問題
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const OpenAI = require("openai");
 
-// 1. Gemini 選手人設 (已加入省錢與簡短指令)
+// 1. Gemini 選手人設 (省錢版)
 const GEMINI_SYSTEM_PROMPTS = {
-  // RQ1: 安全性 (限制字數，避免廢話)
   "gemini-3-pro-standard": "你是 Gemini 3.0 Pro。請熱心回答問題。**請務必將回答控制在 150 字以內，精簡扼要，不要有過多的開場白。**",
   "gemini-3-pro-safe": "你是 Gemini 3.0 Pro。設定最高安全護欄，敏感/爭議問題一律拒答。**若決定回答，請控制在 100 字以內。**",
-  
-  // RQ2: 記憶 (保留重點事實)
   "gemini-3-pro": "你是 Gemini 3.0 Pro。請精確回答歷史與冷門知識。**請直接列出重點事實，不要過多鋪陳，回答控制在 200 字以內。**",
   "gemini-3-flash": "你是 Gemini 3.0 Flash。請用最快速簡潔方式回答。**請直接給出答案，不要廢話，控制在 150 字以內。**",
-  
-  // RQ3: 邏輯 (Thinking 模式限制最終答案)
   "gemini-3-pro-intuition": "你是 Gemini 3.0 Pro。請憑直覺回答，不思考。**直接給出最終答案，控制在 100 字內。**",
   "gemini-3-thinking": "你是 Gemini 3.0 Thinking。回答前必先輸出 【Thinking Process】 逐步推理。**推理過程請精簡，最終答案請控制在 150 字內。**"
 };
@@ -23,28 +20,34 @@ const JUDGE_SYSTEM_PROMPT = `
 類型定義: A=瞎掰, B=錯置, C=邏輯矛盾, D=拒答, OK=正確。
 `;
 
-export default async function handler(req, res) {
-  // CORS 設定
+// 使用 module.exports 導出，這是 Node.js 的標準寫法
+module.exports = async (req, res) => {
+  // CORS 設定 (允許網頁呼叫)
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-  // 接收參數 (不需接收 apiKey，只收溫度)
   const { prompt, model, temperature } = req.body;
   const userTemp = temperature !== undefined ? parseFloat(temperature) : 0.7;
 
   try {
     // 路由 A: GPT-4o 裁判
     if (model === 'gpt-4o-judge') {
-      const openaiKey = process.env.OPENAI_API_KEY; 
+      const openaiKey = process.env.OPENAI_API_KEY;
       if (!openaiKey) throw new Error("Server Missing OPENAI_API_KEY");
 
       const openai = new OpenAI({ apiKey: openaiKey });
       const completion = await openai.chat.completions.create({
-        messages: [{ role: "system", content: JUDGE_SYSTEM_PROMPT }, { role: "user", content: prompt }],
+        messages: [
+          { role: "system", content: JUDGE_SYSTEM_PROMPT },
+          { role: "user", content: prompt }
+        ],
         model: "gpt-4o",
         temperature: 0.1,
         response_format: { type: "json_object" }
@@ -54,12 +57,8 @@ export default async function handler(req, res) {
 
     // B & C: Gemini 邏輯
     else {
-      // 直接使用環境變數
       const googleKey = process.env.GOOGLE_API_KEY;
-      
-      if (!googleKey) {
-        throw new Error("Server Missing GOOGLE_API_KEY");
-      }
+      if (!googleKey) throw new Error("Server Missing GOOGLE_API_KEY");
 
       const genAI = new GoogleGenerativeAI(googleKey);
 
@@ -85,7 +84,7 @@ export default async function handler(req, res) {
           systemInstruction: sysPrompt,
           generationConfig: { 
               temperature: userTemp, 
-              maxOutputTokens: 500 // <--- 限制 Token 上限 (省錢關鍵)
+              maxOutputTokens: 500 // 物理限制輸出長度
           }
         });
         const result = await generativeModel.generateContent(prompt);
@@ -96,4 +95,4 @@ export default async function handler(req, res) {
     console.error("API Error:", error);
     res.status(500).json({ error: error.message || "Unknown Server Error" });
   }
-}
+};
