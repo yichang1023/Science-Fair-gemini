@@ -2,7 +2,7 @@
   "name": "science-fair-gemini",
   "version": "1.0.0",
   "private": true,
-  "description": "Science fair Gemini 3 hallucination evaluation lab (Vercel + Serverless API)",
+  "description": "Science Fair Gemini 3 Dual-Judge Lab (Vercel Serverless)",
   "engines": {
     "node": ">=18"
   },
