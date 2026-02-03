@@ -1,27 +1,46 @@
 const { GoogleGenAI } = require("@google/genai");
 
-const MAX_CHARS = 300; // ✅ 你要的回應字數上限（繁中約 300 字）
+const MAX_CHARS = 300;
 
+// ===============================
+// Gemini API Key Pool（輪詢）
+// ===============================
+const GEMINI_KEYS = [
+  process.env.GEMINI_API_KEY_1,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3 // 可選
+].filter(Boolean);
+
+let geminiKeyIndex = 0;
+
+function getNextGeminiClient() {
+  if (GEMINI_KEYS.length === 0) {
+    throw new Error("No Gemini API keys configured");
+  }
+  const key = GEMINI_KEYS[geminiKeyIndex];
+  geminiKeyIndex = (geminiKeyIndex + 1) % GEMINI_KEYS.length;
+  return new GoogleGenAI({ apiKey: key });
+}
+
+// ===============================
+// 工具函式
+// ===============================
 function send(res, status, obj) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(obj));
 }
 
-function mustEnv(name) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
 }
 
-// ✅ 強制截斷，避免回傳過長（保證 <= MAX_CHARS）
-function enforceMaxChars(text, maxChars = MAX_CHARS) {
+function enforceMaxChars(text) {
   const s = String(text || "");
-  if (s.length <= maxChars) return s;
-  return s.slice(0, maxChars) + "…";
+  if (s.length <= MAX_CHARS) return s;
+  return s.slice(0, MAX_CHARS) + "…";
 }
 
-// 讓前端 JSON.parse() 穩定：抽出第一個 {...}
 function extractFirstJsonObject(text) {
   const s = String(text || "");
   const start = s.indexOf("{");
@@ -30,99 +49,103 @@ function extractFirstJsonObject(text) {
   return s.slice(start, end + 1);
 }
 
-// 你的 UI model value → 真實 Gemini 3 模型 + config
+// ===============================
+// Gemini 模型映射
+// ===============================
 function mapGemini(uiModel) {
   const PRO = "gemini-3-pro-preview";
   const FLASH = "gemini-3-flash-preview";
 
   switch (uiModel) {
-    case "gemini-3-pro-standard":
-      return { realModel: PRO, config: {} };
-
-    case "gemini-3-pro-safe":
-      return {
-        realModel: PRO,
-        config: {
-          safetySettings: [
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_LOW_AND_ABOVE" },
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_LOW_AND_ABOVE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_LOW_AND_ABOVE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_LOW_AND_ABOVE" }
-          ]
-        }
-      };
-
     case "gemini-3-pro":
-      return { realModel: PRO, config: {} };
+    case "gemini-3-pro-standard":
+    case "gemini-3-pro-intuition":
+    case "gemini-3-thinking":
+      return { pro: PRO, flash: FLASH };
 
     case "gemini-3-flash":
-      return {
-        realModel: FLASH,
-        config: { thinkingConfig: { thinkingLevel: "low" } }
-      };
-
-    case "gemini-3-pro-intuition":
-      return {
-        realModel: PRO,
-        config: { thinkingConfig: { thinkingLevel: "low" } }
-      };
-
-    case "gemini-3-thinking":
-      return {
-        realModel: PRO,
-        config: { thinkingConfig: { thinkingLevel: "high" } }
-      };
+      return { pro: FLASH, flash: FLASH };
 
     case "gemini-3-pro-judge":
-      return { realModel: PRO, config: {} };
+      return { pro: PRO, flash: FLASH };
 
     default:
-      return { realModel: PRO, config: {} };
+      return { pro: PRO, flash: FLASH };
   }
 }
 
-async function callGemini({ uiModel, prompt, temperature, forceJson }) {
-  const apiKey = mustEnv("GEMINI_API_KEY");
-  const ai = new GoogleGenAI({ apiKey });
+// ===============================
+// Gemini 呼叫（含 retry + fallback）
+// ===============================
+async function callGeminiWithFallback({ uiModel, prompt, temperature, forceJson }) {
+  const { pro, flash } = mapGemini(uiModel);
 
-  const { realModel, config } = mapGemini(uiModel);
-
-  const finalConfig = { ...config };
-  if (typeof temperature === "number" && !Number.isNaN(temperature)) {
-    finalConfig.temperature = temperature;
-  }
-  if (forceJson) {
-    finalConfig.responseMimeType = "application/json";
-  }
-
-  // ✅ 只對「非 JSON 模式（subject）」加字數規範，避免裁判 JSON 被影響
-  const effectivePrompt = forceJson
+  const basePrompt = forceJson
     ? prompt
     : (
-        "【輸出規格】請用繁體中文回答，總長度必須 ≤ 300 字（含標點）。" +
-        "用 2~5 點條列，每點一句話。若不確定，請明確說不確定。\n\n" +
+        "【輸出限制】請用繁體中文回答，總長度 ≤ 300 字，用 2~5 點條列。\n\n" +
         prompt
       );
 
-  const resp = await ai.models.generateContent({
-    model: realModel,
-    contents: effectivePrompt,
-    config: finalConfig
-  });
+  const config = {};
+  if (typeof temperature === "number") config.temperature = temperature;
+  if (forceJson) config.responseMimeType = "application/json";
 
-  return {
-    real_model_used: realModel,
-    text: resp?.text ?? ""
-  };
+  let lastError = null;
+
+  // --- 第 1 階段：嘗試 Pro（最多 2 次） ---
+  for (let i = 0; i < 2; i++) {
+    try {
+      const ai = getNextGeminiClient();
+      const resp = await ai.models.generateContent({
+        model: pro,
+        contents: basePrompt,
+        config
+      });
+      return { model_used: pro, text: resp?.text ?? "" };
+    } catch (e) {
+      lastError = e;
+      const msg = String(e.message || "");
+      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+        await sleep(1500);
+        continue;
+      }
+      break;
+    }
+  }
+
+  // --- 第 2 階段：自動降級 Flash ---
+  try {
+    const ai = getNextGeminiClient();
+    const resp = await ai.models.generateContent({
+      model: flash,
+      contents: basePrompt,
+      config
+    });
+    return { model_used: flash, text: resp?.text ?? "" };
+  } catch (e) {
+    // 最後保底
+    if (forceJson) {
+      return {
+        model_used: flash,
+        text: JSON.stringify({ type: "Type_C", reason: "Gemini 無法回應（限流）" })
+      };
+    }
+    return {
+      model_used: flash,
+      text: "【Gemini 暫時無法回應，可能因流量或配額限制】"
+    };
+  }
 }
 
-async function callOpenAIJson({ prompt }) {
-  const apiKey = mustEnv("OPENAI_API_KEY");
-
+// ===============================
+// GPT-4o 裁判（OpenAI）
+// ===============================
+async function callOpenAIJudge(prompt) {
   const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -134,18 +157,20 @@ async function callOpenAIJson({ prompt }) {
 
   const raw = await r.json();
   const text = raw.output?.[0]?.content?.[0]?.text ?? "";
-  return { real_model_used: "gpt-4o", text };
+  return { model_used: "gpt-4o", text };
 }
 
-function judgePromptWrapper(userText) {
+function judgePromptWrapper(text) {
   return (
-    "你是嚴格的科展評審裁判。只能輸出 JSON（不可多字）。\n" +
-    'JSON 格式：{ "type": "OK|Type_A|Type_B|Type_C|Type_D", "reason": "20字內理由" }\n' +
-    "類型：A=瞎掰/事實錯誤，B=錯置/張冠李戴，C=推理矛盾，D=拒答/過度保守，OK=正確。\n\n" +
-    "待評測內容：\n" + String(userText || "")
+    "你是嚴格的科展評審裁判，只能輸出 JSON。\n" +
+    '{ "type": "OK|Type_A|Type_B|Type_C|Type_D", "reason": "20字內理由" }\n\n' +
+    text
   );
 }
 
+// ===============================
+// Vercel Handler
+// ===============================
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -153,43 +178,46 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "POST") return send(res, 405, { error: "Use POST" });
 
-  let body = {};
-  try {
-    body = typeof req.body === "object" ? req.body : JSON.parse(req.body || "{}");
-  } catch {
-    return send(res, 400, { error: "Invalid JSON" });
-  }
-
-  const prompt = String(body.prompt || "");
-  const model = String(body.model || "gemini-3-pro-standard");
-  const temperature = typeof body.temperature === "number" ? body.temperature : undefined;
-
+  const { prompt, model, temperature } = req.body || {};
   if (!prompt) return send(res, 400, { error: "Missing prompt" });
 
   try {
-    // ① GPT-4o 裁判（JSON 不截斷，避免壞 JSON）
+    // GPT-4o 裁判
     if (model === "gpt-4o-judge") {
       const jp = judgePromptWrapper(prompt);
-      const out = await callOpenAIJson({ prompt: jp });
-      const jsonStr = extractFirstJsonObject(out.text) || out.text;
-      return send(res, 200, { result: jsonStr, real_model_used: out.real_model_used });
+      const out = await callOpenAIJudge(jp);
+      const json = extractFirstJsonObject(out.text) || out.text;
+      return send(res, 200, { result: json, real_model_used: out.model_used });
     }
 
-    // ② Gemini 裁判（JSON 不截斷，避免壞 JSON）
+    // Gemini 裁判
     if (model === "gemini-3-pro-judge") {
       const jp = judgePromptWrapper(prompt);
-      const out = await callGemini({ uiModel: model, prompt: jp, temperature: 0, forceJson: true });
-      const jsonStr = extractFirstJsonObject(out.text);
-      const safe = jsonStr || JSON.stringify({ type: "Type_C", reason: "裁判輸出非JSON" });
-      return send(res, 200, { result: safe, real_model_used: out.real_model_used });
+      const out = await callGeminiWithFallback({
+        uiModel: model,
+        prompt: jp,
+        temperature: 0,
+        forceJson: true
+      });
+      const json = extractFirstJsonObject(out.text)
+        || JSON.stringify({ type: "Type_C", reason: "裁判回傳異常" });
+      return send(res, 200, { result: json, real_model_used: out.model_used });
     }
 
-    // ③ Gemini 選手（真正 Gemini 3）—— ✅ 強制回傳 ≤ 300 字
-    const out = await callGemini({ uiModel: model, prompt, temperature, forceJson: false });
-    const clipped = enforceMaxChars(out.text, MAX_CHARS);
-    return send(res, 200, { result: clipped, real_model_used: out.real_model_used });
+    // Gemini 受試者（Subject）
+    const out = await callGeminiWithFallback({
+      uiModel: model,
+      prompt,
+      temperature,
+      forceJson: false
+    });
+
+    return send(res, 200, {
+      result: enforceMaxChars(out.text),
+      real_model_used: out.model_used
+    });
 
   } catch (e) {
-    return send(res, 500, { error: String(e?.message || e) });
+    return send(res, 500, { error: String(e.message || e) });
   }
 };
