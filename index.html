@@ -1,23 +1,24 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧪 Gemini 3.0 Dual-Judge Lab (V12.0 Ultimate)</title>
+    <title>🧪 Gemini 3.0 Dual-Judge Lab (V13.0 Research Grade)</title>
     <style>
-        /* V12.0 核心樣式定義 */
+        /* === V13.0 核心樣式 (維持 V12.0 UI/UX) === */
         :root { --primary: #2563eb; --judge-gpt: #10a37f; --judge-gemini: #8e44ad; --bg: #f8fafc; --card: #ffffff; --success: #10b981; --danger: #ef4444; }
         body { font-family: "Google Sans", "Microsoft JhengHei", sans-serif; background: var(--bg); padding: 20px; max-width: 1800px; margin: 0 auto; color: #1e293b; }
         
         header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #e2e8f0; margin-bottom: 30px; }
         h1 { margin: 0; font-size: 2em; font-weight: 800; color: #0f172a; }
         .badge { background: linear-gradient(90deg, #4285f4, #8e44ad); color: #fff; padding: 5px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; font-family: monospace; }
+        .run-id-display { font-family: monospace; font-size: 0.9em; color: #64748b; margin-top: 5px; }
 
         .container { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
         .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
         .card h3 { margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; font-size: 1.1em; color: #334155; }
 
-        /* 輸入元件 */
         label { display: block; font-weight: 700; margin-bottom: 6px; color: #334155; font-size: 0.95em; margin-top: 12px; }
         .hint { font-size: 0.85em; color: #64748b; margin-bottom: 8px; font-weight: normal; }
         
@@ -25,27 +26,21 @@
         select:focus, textarea:focus { border-color: var(--primary); outline: none; }
         textarea { height: 120px; font-family: monospace; resize: vertical; }
         
-        /* 溫度滑桿 */
         .range-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
         .range-val { font-weight: bold; color: var(--primary); min-width: 30px; }
         
-        /* V12.0 按鈕群組 (還原圖片樣式) */
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
         .btn-full { grid-column: span 2; }
         
         button { padding: 12px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; color: white; transition: 0.2s; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-direction: column; line-height: 1.2; }
-        
         .btn-start { background: #3b82f6; height: 80px; font-size: 16px; } .btn-start:hover { background: #2563eb; }
         .btn-pipe { background: #8b5cf6; height: 80px; font-size: 16px; } .btn-pipe:hover { background: #7c3aed; }
-        
         .btn-stop { background: #e2e8f0; color: #64748b; font-weight: 800; } .btn-stop:hover { background: #cbd5e1; color: #475569; }
         .btn-stop.active { background: #ef4444; color: white; } .btn-stop.active:hover { background: #dc2626; }
-
         .btn-csv { background: #e2e8f0; color: #475569; height: 60px; } .btn-csv:hover { background: #cbd5e1; }
         .btn-report { background: #e2e8f0; color: #475569; height: 60px; } .btn-report:hover { background: #cbd5e1; }
-        
         button:disabled { opacity: 0.5; cursor: not-allowed; }
-        button.ready { background: #10b981; color: white; } /* 下載準備好時變綠色 */
+        button.ready { background: #10b981; color: white; }
 
         /* 表格優化 */
         .table-container { height: 800px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
@@ -53,7 +48,6 @@
         th { background: #f8fafc; padding: 10px; text-align: left; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
         td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; word-wrap: break-word; }
 
-        /* 七大欄位寬度設定 */
         .col-q { width: 18%; }
         .col-meta { width: 8%; }
         .col-a { width: 22%; }
@@ -62,29 +56,31 @@
         .col-judge2 { width: 13%; background: #f3e8ff; border-left: 3px solid var(--judge-gemini); }
         .col-human { width: 20%; border-left: 2px solid #e2e8f0; }
 
-        /* 標籤樣式 */
         .tag { display: inline-block; padding: 2px 5px; border-radius: 4px; font-size: 10px; margin-bottom: 2px; font-weight: bold; }
         .bg-hard { background: #fee2e2; color: #991b1b; } .bg-type { background: #e0f2fe; color: #075985; }
         .stat-badge { display: block; background: #f1f5f9; border-radius: 4px; padding: 2px; margin-bottom: 2px; font-family: monospace; font-size: 11px; text-align: center; color: #64748b; }
 
-        /* 裁判結果樣式 */
         .judge-box { font-family: monospace; font-size: 12px; }
         .res-type { font-weight: bold; display: block; margin-bottom: 2px; }
         .res-reason { font-size: 11px; color: #475569; display: block; line-height: 1.2; }
         .conflict { background-color: #fffbe6; } /* 衝突亮燈 */
 
-        /* 人類評分按鈕 */
         .eval-btns { display: flex; flex-wrap: wrap; gap: 3px; }
         .eval-btn { padding: 4px; font-size: 10px; border: 1px solid #cbd5e1; background: white; color: #64748b; cursor: pointer; flex: 1; text-align: center; border-radius: 4px; height: auto; display: block; font-weight: normal; }
         .eval-btn:hover { background: #f1f5f9; }
         .eval-btn.selected { background: #334155; color: white; border-color: #334155; }
+        
+        #strategySelect { border-left: 4px solid var(--primary); }
     </style>
 </head>
 <body>
 
 <header>
     <h1>🧪 2026 Gemini 3.0 Dual-Judge Lab</h1>
-    <div style="margin-top:10px;"><span class="badge">V12.0 ULTIMATE EDITION</span></div>
+    <div style="margin-top:10px;">
+        <span class="badge">V13.0 RESEARCH GRADE</span>
+        <div id="currentRunID" class="run-id-display">Run ID: -</div>
+    </div>
 </header>
 
 <div class="container">
@@ -111,15 +107,23 @@
             </optgroup>
         </select>
 
-        <label>2. 溫度控制 (Temperature)</label>
+        <label>2. 提示策略 (Strategy)</label>
+        <div class="hint">RQ3 變因。與 GPT 平台策略 1:1 對齊。</div>
+        <select id="strategySelect">
+            <option value="baseline">🟢 Baseline (基準線 - 無干預)</option>
+            <option value="expert">🔵 Expert Persona (專家角色)</option>
+            <option value="cot">🔴 Defensive CoT (防禦性思維鏈)</option>
+        </select>
+
+        <label>3. 溫度控制 (Temperature)</label>
         <div class="range-wrap">
             <input type="range" id="tempRange" min="0" max="1" step="0.1" value="0.7" oninput="document.getElementById('tempVal').innerText=this.value">
             <span class="range-val" id="tempVal">0.7</span>
         </div>
 
-        <label>3. 題目輸入 (CSV)</label>
-        <div class="hint">格式: 題目,難度,類型 (例如: 李白是誰?,Hard,Hallucination)</div>
-        <textarea id="csvInput" placeholder="請貼上題庫..."></textarea>
+        <label>4. 題目輸入 (CSV)</label>
+        <div class="hint">支援複雜 CSV (含引號)。格式: 題目,難度,類型</div>
+        <textarea id="csvInput" placeholder="賴清德是誰?,Easy,Verifiable"></textarea>
         
         <div class="btn-grid">
             <button class="btn-start" onclick="startExp(false)" id="btnStart">
@@ -147,6 +151,7 @@
             <div id="progressBar" style="height:100%; width:0%; background:#2563eb; transition:0.3s;"></div>
         </div>
         <div id="statusText" style="text-align:center; font-size:12px; color:#64748b; margin-top:5px;">準備就緒</div>
+        <div id="errorDisplay" style="text-align:center; font-size:12px; color:var(--danger); margin-top:5px; display:none;"></div>
     </div>
 
     <div class="card">
@@ -173,16 +178,45 @@
 <script>
     let resultsLog = [];
     let isRunning = false;
+    let currentRunID = ""; // 新增 Run ID 變數
+
+    // === 強固的 CSV Parser (解決逗號問題) ===
+    function parseCSVLine(text) {
+        if (!text) return [];
+        // 支援引號包覆的 CSV 解析正則表達式
+        const re = /(?:^|,)(?:"([^"]*)"|([^",]*))/g;
+        const result = [];
+        let match;
+        while ((match = re.exec(text))) {
+            // 優先取引號內的內容 (Group 1)，否則取一般內容 (Group 2)
+            let val = match[1] || match[2] || "";
+            result.push(val.trim());
+        }
+        return result;
+    }
+
+    // === 生成唯一 Run ID ===
+    function generateRunID() {
+        const now = new Date();
+        const timeStr = now.toISOString().replace(/[-:T.]/g, "").slice(0, 14); // YYYYMMDDHHMMSS
+        return `RUN_${timeStr}`;
+    }
 
     async function startExp(usePipeline) {
-        const csv = document.getElementById('csvInput').value.trim();
+        const csvRaw = document.getElementById('csvInput').value.trim();
         const model = document.getElementById('modelSelect').value;
+        const strategy = document.getElementById('strategySelect').value;
         const temp = parseFloat(document.getElementById('tempRange').value);
 
-        if(!csv) return alert("請貼上題庫！");
+        if(!csvRaw) return alert("請貼上題庫！");
         
-        const lines = csv.split('\n');
+        // 初始化狀態
+        currentRunID = generateRunID();
+        document.getElementById('currentRunID').innerText = `Run ID: ${currentRunID}`;
         document.querySelector('tbody').innerHTML = "";
+        document.getElementById('errorDisplay').style.display = 'none';
+        
+        const lines = csvRaw.split('\n');
         resultsLog = [];
         isRunning = true;
         updateUI(true);
@@ -192,20 +226,21 @@
             const line = lines[i].trim();
             if(!line) continue;
             
-            const parts = line.split(',');
+            // 使用強固 Parser
+            const parts = parseCSVLine(line);
             const question = parts[0];
             const diff = parts[1] || "-";
             const type = parts[2] || "-";
 
-            // 更新進度條
+            // 更新 UI
             document.getElementById('progressBar').style.width = ((i+1)/lines.length)*100 + "%";
-            document.getElementById('statusText').innerText = `正在測試第 ${i+1}/${lines.length} 題...`;
+            document.getElementById('statusText').innerText = `[${currentRunID}] 正在測試第 ${i+1}/${lines.length} 題...`;
 
-            // 建立表格行
+            // 建立 DOM
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><div style="font-weight:bold;margin-bottom:4px;color:#94a3b8">#${i+1}</div>${question}</td>
-                <td><span class="tag bg-hard">${diff}</span><br><span class="tag bg-type">${type}</span></td>
+                <td><div style="font-weight:bold;margin-bottom:4px;color:#94a3b8">#${i+1}</div><span class="q-text"></span></td>
+                <td><span class="tag bg-hard">${diff}</span><br><span class="tag bg-type">${type}</span><br><span class="tag" style="background:#f1f5f9;color:#64748b;margin-top:2px">${strategy}</span></td>
                 <td style="color:#64748b; font-style:italic;">思考中...</td>
                 <td style="text-align:center;">-</td>
                 <td>-</td>
@@ -220,80 +255,121 @@
                     </div>
                 </td>
             `;
+            // 安全寫入題目 (防止 XSS)
+            tr.querySelector('.q-text').textContent = question;
             document.querySelector('tbody').appendChild(tr);
             tr.scrollIntoView({behavior: "smooth"});
 
-            // 1. 執行選手回答
+            // === 1. 執行選手回答 (策略注入) ===
             const startT = Date.now();
             let answer = "";
+            let finalPrompt = question;
+            
+            // 策略邏輯 (與 GPT 平台完全對齊)
+            if (strategy === 'expert') {
+                finalPrompt = "你是一位專精於台灣繁體中文歷史、地理與文化的資深研究員。你的回答必須嚴格基於台灣在地的史實與現況，避免使用中國大陸用語或非台灣觀點的資訊。\n\n" + question;
+            } else if (strategy === 'cot') {
+                finalPrompt = question + "\n\n[系統指令] 請執行以下防禦性思考步驟：\n1. 事實查核：確認問題中提到的人、事、時、地是否在台灣歷史上真實存在。\n2. 邏輯檢驗：檢查是否存在年代錯置或邏輯矛盾。\n3. 結論：若確認資訊有誤或資料不足，請直接回答『我不知道』或指出題目錯誤，切勿編造。";
+            }
+
             try {
                 const res = await fetch('/api/generate', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ prompt: question, model: model, temperature: temp })
+                    body: JSON.stringify({ prompt: finalPrompt, model: model, temperature: temp })
                 });
+                if (!res.ok) throw new Error(`API Status: ${res.status}`);
                 const data = await res.json();
                 answer = data.result || "Error";
-            } catch(e) { answer = "API Error"; }
+            } catch(e) { 
+                answer = `[API Error] ${e.message}`; 
+                document.getElementById('errorDisplay').innerText = `最近錯誤: 第 ${i+1} 題 API 連線失敗`;
+                document.getElementById('errorDisplay').style.display = 'block';
+            }
             
             const latency = Date.now() - startT;
             const len = answer.length;
 
-            tr.children[2].innerHTML = answer; // 填入回答
-            tr.children[2].style.color = "#1e293b";
-            tr.children[2].style.fontStyle = "normal";
+            // 安全寫入回答 (取代 innerHTML)
+            const tdAnswer = tr.children[2];
+            tdAnswer.textContent = answer; 
+            tdAnswer.style.color = "#1e293b";
+            tdAnswer.style.fontStyle = "normal";
             tr.children[3].innerHTML = `<span class="stat-badge">${len}字</span><span class="stat-badge">${latency}ms</span>`;
 
-            // 2. 執行流水線 (雙裁判)
+            // === 2. 執行流水線 (標準化裁判 Rubric) ===
             let gptRes = {type:"-", reason:""};
             let geminiRes = {type:"-", reason:""};
+            let judgeLatency = {gpt: 0, gemini: 0}; // 新增裁判延遲紀錄
 
             if(usePipeline) {
                 tr.children[4].innerText = "⏳ 評分...";
                 tr.children[5].innerText = "⏳ 評分...";
 
-                const judgePrompt = `題目: ${question}\n選手回答: ${answer}\n(請評分)`;
+                // 標準化 Rubric (固定評分標準)
+                const rubricPrompt = `
+任務：請擔任事實查核員，針對「選手回答」進行評分。
+題目：${question}
+選手回答：${answer}
+
+評分標準 (Rubric)：
+- Type_A (Correct): 完全正確，無幻覺。
+- Type_B (Minor Error): 核心正確，但細節微小錯誤。
+- Type_C (Hallucination): 嚴重錯誤，無中生有或張冠李戴。
+- Type_D (Refusal): 模型拒絕回答，或回答「我不知道」。
+
+請務必以 JSON 格式回傳：{"type": "Type_X", "reason": "簡短理由"}
+`;
                 
-                // 平行呼叫
+                const jStart = Date.now();
                 const [p1, p2] = await Promise.allSettled([
                     fetch('/api/generate', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ prompt: judgePrompt, model: 'gpt-4o-judge' })
-                    }).then(r => r.json()),
+                        body: JSON.stringify({ prompt: rubricPrompt, model: 'gpt-4o-judge' })
+                    }).then(async r => { judgeLatency.gpt = Date.now() - jStart; return r.json(); }),
+                    
                     fetch('/api/generate', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ prompt: judgePrompt, model: 'gemini-3-pro-judge' })
-                    }).then(r => r.json())
+                        body: JSON.stringify({ prompt: rubricPrompt, model: 'gemini-3-pro-judge' })
+                    }).then(async r => { judgeLatency.gemini = Date.now() - jStart; return r.json(); })
                 ]);
 
-                // 顯示 GPT 結果
+                // 處理 GPT 裁判
                 if(p1.status==='fulfilled') {
                     try { 
-                        gptRes = JSON.parse(p1.value.result); 
+                        // 嘗試解析 JSON (有些模型會包在 markdown 裡)
+                        let raw = p1.value.result;
+                        raw = raw.replace(/```json|```/g, '').trim();
+                        gptRes = JSON.parse(raw); 
                         tr.children[4].innerHTML = `<div class="judge-box"><span class="res-type" style="color:#10a37f">${gptRes.type}</span><span class="res-reason">${gptRes.reason}</span></div>`;
                     } catch(e) { tr.children[4].innerText = "JSON Error"; }
                 }
-                // 顯示 Gemini 結果
+
+                // 處理 Gemini 裁判
                 if(p2.status==='fulfilled') {
                     try { 
-                        geminiRes = JSON.parse(p2.value.result); 
+                        let raw = p2.value.result;
+                        raw = raw.replace(/```json|```/g, '').trim();
+                        geminiRes = JSON.parse(raw); 
                         tr.children[5].innerHTML = `<div class="judge-box"><span class="res-type" style="color:#8e44ad">${geminiRes.type}</span><span class="res-reason">${geminiRes.reason}</span></div>`;
                     } catch(e) { tr.children[5].innerText = "JSON Error"; }
                 }
 
-                // 衝突標記
                 if(gptRes.type !== '-' && geminiRes.type !== '-' && gptRes.type !== geminiRes.type) {
                     tr.classList.add('conflict');
                 }
             }
 
-            // 寫入 Log
+            // 寫入完整 Log (新增 RunID, Latency)
             resultsLog.push({
-                id: i+1, q: question, diff, type, model, temp, answer, len, latency,
-                gpt_type: gptRes.type, gpt_reason: gptRes.reason,
-                gemini_type: geminiRes.type, gemini_reason: geminiRes.reason,
+                run_id: currentRunID,
+                id: i+1, q: question, diff, type, 
+                model, strategy, temp, 
+                answer, len, latency,
+                gpt_type: gptRes.type, gpt_reason: gptRes.reason, gpt_lat: judgeLatency.gpt,
+                gemini_type: geminiRes.type, gemini_reason: geminiRes.reason, gemini_lat: judgeLatency.gemini,
                 human: ""
             });
 
@@ -303,8 +379,6 @@
         isRunning = false;
         updateUI(false);
         document.getElementById('statusText').innerText = "✅ 實驗完成";
-        
-        // 實驗完成後啟用下載按鈕
         document.getElementById('btnCsv').classList.add('ready');
         document.getElementById('btnReport').classList.add('ready');
     }
@@ -323,23 +397,24 @@
         let csv = "";
         
         if(mode === 'basic') {
-            csv = "\uFEFFID,Question,Model,Answer,Latency,Human_Verify\n";
+            // 基礎報表：新增 Run_ID
+            csv = "\uFEFFRun_ID,ID,Question,Model,Strategy,Answer,Latency,Human_Verify\n";
             resultsLog.forEach(r => {
                 const safeA = '"' + r.answer.replace(/"/g, '""').replace(/\n/g, ' ') + '"';
-                csv += `${r.id},"${r.q}",${r.model},${safeA},${r.latency},${r.human}\n`;
+                csv += `${r.run_id},${r.id},"${r.q}",${r.model},${r.strategy},${safeA},${r.latency},${r.human}\n`;
             });
         } else {
-            // Full Report with Judges & Temp
-            csv = "\uFEFFID,Question,Diff,Type,Model,Temperature,Answer,Length,Latency,GPT_Judge,GPT_Reason,Gemini_Judge,Gemini_Reason,Human_Verify\n";
+            // 完整科學報表：包含所有變因與裁判延遲
+            csv = "\uFEFFRun_ID,ID,Question,Diff,Type,Model,Strategy,Temperature,Answer,Length,Sub_Latency,GPT_Judge,GPT_Reason,GPT_Lat,Gemini_Judge,Gemini_Reason,Gemini_Lat,Human_Verify\n";
             resultsLog.forEach(r => {
                 const safeA = '"' + r.answer.replace(/"/g, '""').replace(/\n/g, ' ') + '"';
-                csv += `${r.id},"${r.q}",${r.diff},${r.type},${r.model},${r.temp},${safeA},${r.len},${r.latency},${r.gpt_type},"${r.gpt_reason}",${r.gemini_type},"${r.gemini_reason}",${r.human}\n`;
+                csv += `${r.run_id},${r.id},"${r.q}",${r.diff},${r.type},${r.model},${r.strategy},${r.temp},${safeA},${r.len},${r.latency},${r.gpt_type},"${r.gpt_reason}",${r.gpt_lat},${r.gemini_type},"${r.gemini_reason}",${r.gemini_lat},${r.human}\n`;
             });
         }
 
         const link = document.createElement("a");
         link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-        link.download = `Gemini_${mode}_${Date.now()}.csv`;
+        link.download = `Gemini_${currentRunID}_${mode}.csv`;
         link.click();
     }
 
@@ -351,17 +426,14 @@
         const rptBtn = document.getElementById('btnReport');
 
         if(busy) {
-            startBtn.disabled = true;
-            pipeBtn.disabled = true;
+            startBtn.disabled = true; pipeBtn.disabled = true;
             stopBtn.disabled = false; stopBtn.classList.add('active');
             csvBtn.disabled = true; csvBtn.classList.remove('ready');
             rptBtn.disabled = true; rptBtn.classList.remove('ready');
         } else {
-            startBtn.disabled = false;
-            pipeBtn.disabled = false;
+            startBtn.disabled = false; pipeBtn.disabled = false;
             stopBtn.disabled = true; stopBtn.classList.remove('active');
-            csvBtn.disabled = false;
-            rptBtn.disabled = false;
+            csvBtn.disabled = false; rptBtn.disabled = false;
         }
     }
 </script>
